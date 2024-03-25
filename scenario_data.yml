@@ -1,0 +1,25 @@
+directives:
+- add_model:
+    name: iiwa
+    file: package://drake/manipulation/models/iiwa_description/iiwa7/iiwa7_no_collision.sdf
+    default_joint_positions:
+        iiwa_joint_1: [0.0]
+        iiwa_joint_2: [0.4]
+        iiwa_joint_3: [0]
+        iiwa_joint_4: [-1.2]
+        iiwa_joint_5: [0]
+        iiwa_joint_6: [1.0]
+        iiwa_joint_7: [1.57]
+- add_weld:
+    parent: world
+    child: iiwa::iiwa_link_0
+
+lcm_buses:
+    driver_traffic:
+        # Use a non-default LCM url to communicate with the robot.
+        lcm_url: udpm://239.255.76.67:7667?ttl=0
+
+model_drivers:
+    iiwa: !IiwaDriver
+      lcm_bus: driver_traffic
+      hand_model_name: wsg
