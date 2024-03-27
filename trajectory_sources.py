@@ -1,5 +1,10 @@
 import numpy as np
-from pydrake.all import BasicVector, Context, LeafSystem
+from pydrake.all import (
+    BasicVector, 
+    Context, 
+    LeafSystem,
+    InputPortIndex,
+)
 from enum import Enum
 from pydrake.common.value import (
     AbstractValue
@@ -12,55 +17,7 @@ class ControlState(Enum):
 
 num_iiwa_positions = 7
 
-class ToggleHoldPositionSource(LeafSystem):
-    def __init__(self, meshcat: Meshcat):
-        super().__init__()
-        self._mode_index = self.DeclareAbstractState(
-            AbstractValue.Make(ControlState.HOLD)
-        )
-
-        # The current position cmd to be used if holding
-        self._current_cmd_input_port = self.DeclareVectorInputPort(
-            "position_commanded", num_iiwa_positions
-        )
-
-        self._current_position_input_port = self.DeclareVectorInputPort(
-            "position_measured", num_iiwa_positions
-        )
-
-        self.DeclarePeriodicUnrestrictedUpdateEvent(0.1, 0.0, self.Update)
-
-        # read button from meshcat to toggle hold/free
-        self._meshcat = meshcat
-        self._button = "Toggle hold/free"
-        meshcat.AddButton(self._button, "Space")
-
-        self.DeclareVectorOutputPort(
-            "position_cmd", num_iiwa_positions, self._calc_torque_value
-        )
-
-    def __del__(self):
-        self._meshcat.DeleteButton(self._button)
-
-    def Update(self, context, state):
-        if (self._meshcat.GetButtonClicks(self._button) % 2) == 1:
-            state.get_mutable_abstract_state(
-                int(self._mode_index)
-            ).set_value(ControlState.FREE)
-        else:
-            state.get_mutable_abstract_state(
-                int(self._mode_index)
-            ).set_value(ControlState.HOLD)
-
-    def _calc_torque_value(self, context: Context, output: BasicVector) -> None:
-        mode = context.get_abstract_state(int(self._mode_index)).get_value()
-
-        if mode == ControlState.HOLD:
-            output.SetFromVector(self._current_cmd_input_port.Eval(context))
-        else:
-            output.SetFromVector(self._current_position_input_port.Eval(context))
-
-class ToggleHoldTorqueSource(LeafSystem):
+class ToggleHoldControlModeSource(LeafSystem):
 
     def __init__(self, meshcat: Meshcat):
         super().__init__()
@@ -68,13 +25,21 @@ class ToggleHoldTorqueSource(LeafSystem):
             AbstractValue.Make(ControlState.HOLD)
         )
 
-        # The current torque cmd to be used if holding
-        self._current_cmd_input_port = self.DeclareVectorInputPort(
-            "current_cmd", num_iiwa_positions
-        )
+        self._hold_position_index = self.DeclareDiscreteState(num_iiwa_positions)
+        self.DeclareInitializationDiscreteUpdateEvent(self.Initialize)
 
         self._current_position_input_port = self.DeclareVectorInputPort(
             "current_position", num_iiwa_positions
+        ).get_index()
+
+        self.DeclareAbstractOutputPort(
+            "control_mode",
+            lambda: AbstractValue.Make(InputPortIndex(0)),
+            self.CalcControlMode,
+        )
+
+        self.DeclareVectorOutputPort(
+            "hold_state", num_iiwa_positions * 2, self.CalcHoldState
         )
 
         self.DeclarePeriodicUnrestrictedUpdateEvent(0.1, 0.0, self.Update)
@@ -84,35 +49,78 @@ class ToggleHoldTorqueSource(LeafSystem):
         self._button = "Toggle hold/free"
         meshcat.AddButton(self._button, "Space")
 
-        self.DeclareVectorOutputPort(
-            "torque_cmd", num_iiwa_positions, self._calc_torque_value
-        )
-
     def __del__(self):
         self._meshcat.DeleteButton(self._button)
 
     def Update(self, context, state):
+        prev_mode = context.get_abstract_state(int(self._mode_index)).get_value()
+
         if (self._meshcat.GetButtonClicks(self._button) % 2) == 1:
+            if (prev_mode != ControlState.FREE):
+                print("to free")
+
             state.get_mutable_abstract_state(
                 int(self._mode_index)
             ).set_value(ControlState.FREE)
         else:
+            if (prev_mode != ControlState.HOLD):
+                print("to hold")
+                current_position = self.get_input_port(self._current_position_input_port).Eval(context)
+                print(current_position)
+                state.get_mutable_abstract_state(
+                    int(self._hold_position_index)
+                ).set_value(current_position)
+
             state.get_mutable_abstract_state(
                 int(self._mode_index)
             ).set_value(ControlState.HOLD)
 
-    def _calc_torque_value(self, context: Context, output: BasicVector) -> None:
+    def Initialize(self, context, discrete_state):
+        print(self.get_input_port(int(self._current_position_input_port)).Eval(context))
+        discrete_state.set_value(
+            int(self._hold_position_index),
+            self.get_input_port(int(self._current_position_input_port)).Eval(context),
+        )
+
+    def CalcControlMode(self, context, output):
         mode = context.get_abstract_state(int(self._mode_index)).get_value()
 
-        # print(self._current_position_input_port.Eval(context))
-        if mode == ControlState.HOLD:
-            print(self._current_cmd_input_port.Eval(context))
-            output.SetFromVector(np.zeros(num_iiwa_positions)) # this for now cuz sheesh
-            # output.SetFromVector(self._current_cmd_input_port.Eval(context))
+        if mode == ControlState.FREE:
+            output.set_value(InputPortIndex(2))  # Free - Zero torques
         else:
-            output.SetFromVector(np.zeros(num_iiwa_positions))
+            output.set_value(InputPortIndex(1))  # Hold - PD control
 
-class DummyZeroTorqueCommander(LeafSystem):
+    def CalcHoldState(self, context, output):
+        mode = context.get_abstract_state(int(self._mode_index)).get_value()
+        hold_position = context.get_discrete_state(self._hold_position_index).get_value().copy()
+
+        if mode == ControlState.FREE:
+            output.SetFromVector(np.zeros(num_iiwa_positions * 2))
+        else:
+            # print(hold_position.tolist() + [0] * num_iiwa_positions)
+            output.SetFromVector(hold_position.tolist() + [0] * num_iiwa_positions)
+
+
+class StateFromPositionVelocity(LeafSystem):
+    def __init__(self):
+        super().__init__()
+
+        self._position_input_port = self.DeclareVectorInputPort(
+            "position", num_iiwa_positions
+        ).get_index()
+        self._velocity_input_port = self.DeclareVectorInputPort(
+            "velocity", num_iiwa_positions
+        ).get_index()
+        self.DeclareVectorOutputPort(
+            "state", num_iiwa_positions * 2, self._calc_state
+        )
+
+    def _calc_state(self, context: Context, output: BasicVector) -> None:
+        position = self.get_input_port(self._position_input_port).Eval(context)
+        velocity = self.get_input_port(self._velocity_input_port).Eval(context)
+        output.SetFromVector(position.tolist() + velocity.tolist())
+
+class ZeroTorqueCommander(LeafSystem):
     def __init__(self):
         super().__init__()
 

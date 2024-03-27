@@ -8,10 +8,10 @@ from pydrake.geometry import (
     StartMeshcat
 )
 from pydrake.systems.primitives import (
-    Demultiplexer
+    PortSwitch
 )
 from pydrake.systems.controllers import (
-    InverseDynamics
+    InverseDynamicsController
 )
 from pydrake.manipulation import (
     SimIiwaDriver,
@@ -21,7 +21,7 @@ from manipulation.station import MakeHardwareStation, LoadScenario
 from pydrake.systems.analysis import Simulator
 from pydrake.systems.framework import DiagramBuilder
 from joint_position_publisher import JointPositionPublisher
-from trajectory_sources import ToggleHoldTorqueSource, DummyZeroTorqueCommander
+from trajectory_sources import ToggleHoldControlModeSource, ZeroTorqueCommander, StateFromPositionVelocity
 
 def main(use_hardware = False):
     # Start the visualizer.
@@ -44,28 +44,67 @@ def main(use_hardware = False):
     controller_plant = station.GetSubsystemByName(
         "plant"
     )
+    num_positions = 7
+    kp_gains=np.full(num_positions, 1)
+    kd_gains=np.full(num_positions, 0)
+    damping_ratios=np.full(num_positions, 0.2)
 
-    gravity_compensation: InverseDynamics = builder.AddNamedSystem(
-        "gravity_compensation",
-        InverseDynamics(
-            plant=controller_plant,
-            mode=InverseDynamics.InverseDynamicsMode.kGravityCompensation,
+    state_from_position_velocity = builder.AddSystem(StateFromPositionVelocity())
+    builder.Connect(
+        external_station.GetOutputPort("iiwa.position_measured"),
+        state_from_position_velocity.GetInputPort("position"),
+    )
+    builder.Connect(
+        external_station.GetOutputPort("iiwa.velocity_estimated"),
+        state_from_position_velocity.GetInputPort("velocity"),
+    )
+
+    control_mode_source = builder.AddSystem(ToggleHoldControlModeSource(meshcat))
+    zero_torque_source = builder.AddSystem(ZeroTorqueCommander())
+    inverse_dynamics_controller = builder.AddSystem(
+        InverseDynamicsController(
+            controller_plant,
+            kp=kp_gains,
+            ki=[0.0] * num_positions,
+            kd=kd_gains,
+            has_reference_acceleration=True,
         ),
     )
 
-    torque_source = builder.AddSystem(ToggleHoldTorqueSource(meshcat))
+    switch = builder.AddSystem(PortSwitch(7))
+    builder.Connect(
+        inverse_dynamics_controller.GetOutputPort("generalized_force"), 
+        switch.DeclareInputPort("pd_torque"),
+    )
+    builder.Connect(
+        zero_torque_source.GetOutputPort("torque_cmd"),
+        switch.DeclareInputPort("zero_torque"),
+    )
+    builder.Connect(
+        control_mode_source.GetOutputPort("control_mode"),
+        switch.get_port_selector_input_port(),
+    )
+
+    builder.Connect(
+        control_mode_source.GetOutputPort("hold_state"),
+        inverse_dynamics_controller.GetInputPort("desired_state"),
+    )
+    builder.Connect(
+        zero_torque_source.GetOutputPort("torque_cmd"), # vector of all zeros, does the same job of 0 accel
+        inverse_dynamics_controller.GetInputPort("desired_acceleration"),
+    )
+    builder.Connect(
+        external_station.GetOutputPort("iiwa.position_measured"),
+        control_mode_source.GetInputPort("current_position"),
+    )
+    builder.Connect(
+        state_from_position_velocity.GetOutputPort("state"),
+        inverse_dynamics_controller.GetInputPort("estimated_state"),
+    )
+
     if use_hardware:
         builder.Connect(
-            external_station.GetOutputPort("iiwa.state_estimated"),
-            gravity_compensation.get_input_port_estimated_state(),
-        )
-
-        builder.Connect(
-            gravity_compensation.get_output_port_generalized_force(),
-            torque_source.GetInputPort("current_cmd"),
-        )
-        builder.Connect(
-            torque_source.GetOutputPort("torque_cmd"),
+            switch.get_output_port(),
             external_station.GetInputPort("iiwa.torque"),
         )
         builder.Connect(
@@ -74,37 +113,12 @@ def main(use_hardware = False):
         )
 
     else:
-        dummy = builder.AddSystem(DummyZeroTorqueCommander())
         builder.Connect(
-            dummy.GetOutputPort("torque_cmd"),
+            zero_torque_source.GetOutputPort("torque_cmd"),
             external_station.GetInputPort("iiwa.torque"),
         )
-
-        # sim_driver = builder.AddSystem(SimIiwaDriver(IiwaControlMode.kTorqueOnly, controller_plant, 0.1, np.full(7, 100.0)))
-        # builder.Connect(
-        #     torque_source.GetOutputPort("torque_cmd"),
-        #     sim_driver.GetInputPort("torque"),
-        # )
-        # builder.Connect(
-        #     station.GetOutputPort("iiwa.state_estimated"),
-        #     sim_driver.GetInputPort("state"),
-        # )
-
         builder.Connect(
-            external_station.GetOutputPort("iiwa.state_estimated"),
-            gravity_compensation.get_input_port_estimated_state(),
-        )
-
-        builder.Connect(
-            gravity_compensation.get_output_port_generalized_force(),
-            torque_source.GetInputPort("current_cmd"),
-        )
-        builder.Connect(
-            external_station.GetOutputPort("iiwa.position_commanded"),
-            torque_source.GetInputPort("current_position"),
-        )
-        builder.Connect(
-            torque_source.GetOutputPort("torque_commanded"),
+            switch.get_output_port(),
             station.GetInputPort("iiwa.torque"),
         )
 
