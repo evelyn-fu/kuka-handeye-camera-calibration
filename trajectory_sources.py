@@ -23,7 +23,7 @@ class ToggleHoldControlModeSource(LeafSystem):
     def __init__(self, meshcat: Meshcat):
         super().__init__()
         self._mode_index = self.DeclareAbstractState(
-            AbstractValue.Make(ControlState.HOLD)
+            AbstractValue.Make(ControlState.INIT)
         )
 
         self._hold_position_index = self.DeclareAbstractState(
@@ -58,6 +58,13 @@ class ToggleHoldControlModeSource(LeafSystem):
     def Update(self, context, state):
         prev_mode = context.get_abstract_state(int(self._mode_index)).get_value()
         if prev_mode == ControlState.INIT:
+            print("to hold")
+            current_position = self.get_input_port(self._current_position_input_port).Eval(context)
+            print(current_position)
+            state.get_mutable_abstract_state(
+                int(self._hold_position_index)
+            ).set_value(current_position)
+
             state.get_mutable_abstract_state(
                 int(self._mode_index)
             ).set_value(ControlState.HOLD)
@@ -94,13 +101,12 @@ class ToggleHoldControlModeSource(LeafSystem):
         mode = context.get_abstract_state(int(self._mode_index)).get_value()
 
         if mode == ControlState.HOLD:
-            output.set_value(InputPortIndex(2))  # Hold - PD control
+            output.set_value(InputPortIndex(1))  # Hold - PD control
         else:
             output.set_value(InputPortIndex(2))  # Free - Zero torques
 
     def CalcHoldState(self, context, output):
         hold_position = context.get_abstract_state(self._hold_position_index).get_value().copy()
-        print("hold_pos:", hold_position)
         output.SetFromVector(hold_position.tolist() + [0] * num_iiwa_positions)
 
 
