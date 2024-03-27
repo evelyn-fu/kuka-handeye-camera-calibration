@@ -1,6 +1,6 @@
 from pydrake.systems.framework import LeafSystem
-import rospy
-from rospy import Publisher
+# import rospy
+# from rospy import Publisher
 import numpy as np
 
 class JointPositionPublisher(LeafSystem):

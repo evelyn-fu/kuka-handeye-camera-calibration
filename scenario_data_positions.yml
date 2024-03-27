@@ -23,7 +23,7 @@ directives:
         translation: [0, 0, 0.09]
         rotation: !Rpy { deg: [90, 0, 90]}
 plant_config:
-    time_step: 1e-3 # 1e-3 for torque_only mode and 5e-3 otherwise
+    time_step: 5e-3 # 1e-3 for torque_only mode and 5e-3 otherwise
     contact_model: "hydroelastic_with_fallback"
     discrete_contact_approximation: "sap"
 
@@ -31,7 +31,7 @@ model_drivers:
     iiwa: !IiwaDriver
       lcm_bus: driver_traffic
       hand_model_name: wsg
-      control_mode: torque_only
+      # control_mode: torque_only
     
 lcm_buses:
     driver_traffic:
