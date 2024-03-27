@@ -1,2 +1,1 @@
-from .forward_kinematics import IiwaForwardKinematics
 from .hardware_station import IiwaHardwareStationDiagram

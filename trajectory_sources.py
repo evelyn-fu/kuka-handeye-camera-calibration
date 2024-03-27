@@ -12,8 +12,9 @@ from pydrake.common.value import (
 from pydrake.geometry import Meshcat
 
 class ControlState(Enum):
-    HOLD = 1
-    FREE = 2
+    INIT = 1
+    HOLD = 2
+    FREE = 3
 
 num_iiwa_positions = 7
 
@@ -25,8 +26,10 @@ class ToggleHoldControlModeSource(LeafSystem):
             AbstractValue.Make(ControlState.HOLD)
         )
 
-        self._hold_position_index = self.DeclareDiscreteState(num_iiwa_positions)
-        self.DeclareInitializationDiscreteUpdateEvent(self.Initialize)
+        self._hold_position_index = self.DeclareAbstractState(
+            AbstractValue.Make([0] * num_iiwa_positions)
+        )
+        self.DeclareInitializationUnrestrictedUpdateEvent(self.Initialize)
 
         self._current_position_input_port = self.DeclareVectorInputPort(
             "current_position", num_iiwa_positions
@@ -54,14 +57,19 @@ class ToggleHoldControlModeSource(LeafSystem):
 
     def Update(self, context, state):
         prev_mode = context.get_abstract_state(int(self._mode_index)).get_value()
+        if prev_mode == ControlState.INIT:
+            state.get_mutable_abstract_state(
+                int(self._mode_index)
+            ).set_value(ControlState.HOLD)
+            return
 
         if (self._meshcat.GetButtonClicks(self._button) % 2) == 1:
             if (prev_mode != ControlState.FREE):
                 print("to free")
 
-            state.get_mutable_abstract_state(
-                int(self._mode_index)
-            ).set_value(ControlState.FREE)
+                state.get_mutable_abstract_state(
+                    int(self._mode_index)
+                ).set_value(ControlState.FREE)
         else:
             if (prev_mode != ControlState.HOLD):
                 print("to hold")
@@ -71,34 +79,29 @@ class ToggleHoldControlModeSource(LeafSystem):
                     int(self._hold_position_index)
                 ).set_value(current_position)
 
-            state.get_mutable_abstract_state(
-                int(self._mode_index)
-            ).set_value(ControlState.HOLD)
+                state.get_mutable_abstract_state(
+                    int(self._mode_index)
+                ).set_value(ControlState.HOLD)
 
-    def Initialize(self, context, discrete_state):
-        print(self.get_input_port(int(self._current_position_input_port)).Eval(context))
-        discrete_state.set_value(
-            int(self._hold_position_index),
-            self.get_input_port(int(self._current_position_input_port)).Eval(context),
-        )
+    def Initialize(self, context, state):
+        current_position = self.get_input_port(self._current_position_input_port).Eval(context)
+        print(current_position)
+        state.get_mutable_abstract_state(
+            int(self._hold_position_index)
+        ).set_value(current_position)
 
     def CalcControlMode(self, context, output):
         mode = context.get_abstract_state(int(self._mode_index)).get_value()
 
-        if mode == ControlState.FREE:
-            output.set_value(InputPortIndex(2))  # Free - Zero torques
+        if mode == ControlState.HOLD:
+            output.set_value(InputPortIndex(2))  # Hold - PD control
         else:
-            output.set_value(InputPortIndex(1))  # Hold - PD control
+            output.set_value(InputPortIndex(2))  # Free - Zero torques
 
     def CalcHoldState(self, context, output):
-        mode = context.get_abstract_state(int(self._mode_index)).get_value()
-        hold_position = context.get_discrete_state(self._hold_position_index).get_value().copy()
-
-        if mode == ControlState.FREE:
-            output.SetFromVector(np.zeros(num_iiwa_positions * 2))
-        else:
-            # print(hold_position.tolist() + [0] * num_iiwa_positions)
-            output.SetFromVector(hold_position.tolist() + [0] * num_iiwa_positions)
+        hold_position = context.get_abstract_state(self._hold_position_index).get_value().copy()
+        print("hold_pos:", hold_position)
+        output.SetFromVector(hold_position.tolist() + [0] * num_iiwa_positions)
 
 
 class StateFromPositionVelocity(LeafSystem):
