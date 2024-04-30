@@ -23,9 +23,10 @@ from pydrake.all import (
 from manipulation.station import MakeHardwareStation, LoadScenario
 from pydrake.systems.analysis import Simulator
 from pydrake.systems.framework import DiagramBuilder
-from joint_position_publisher import JointPositionPublisher
+from end_effector_transform_publisher import EndEffectorTransformPublisher
 from trajectory_sources import ToggleHoldControlModeSource, ZeroTorqueCommander, StateFromPositionVelocity
 from iiwa import IiwaHardwareStationDiagram
+import rclpy
 
 def main(use_hardware = False):
     builder = DiagramBuilder()
@@ -46,13 +47,13 @@ def main(use_hardware = False):
     if not use_hardware:
         station.disable_gravity()
 
-    # pub = rospy.Publisher('iiwa_joint_positions', numpy_msg(Floats))
-    # joint_publisher = builder.AddSystem(JointPositionPublisher(pub))
+    rclpy.init()
+    ee_publisher = builder.AddSystem(EndEffectorTransformPublisher(station.get_internal_plant()))
 
-    # builder.Connect(
-    #     external_station.GetOutputPort("iiwa.position_commanded"),
-    #     joint_publisher.GetInputPort("iiwa_position"),
-    # )
+    builder.Connect(
+        station.GetOutputPort("body_poses"),
+        ee_publisher.GetInputPort("body_poses"),
+    )
     controller_plant = station.get_iiwa_controller_plant()
     num_positions = 7
     kp_gains=np.full(num_positions, 600)
@@ -116,6 +117,8 @@ def main(use_hardware = False):
     while station.internal_meshcat.GetButtonClicks("Stop Simulation") < 1:
         simulator.AdvanceTo(simulator.get_context().get_time() + 0.1)
     station.internal_meshcat.DeleteButton("Stop Simulation")
+    ee_publisher.destroy_node()
+    rclpy.shutdown()
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()

@@ -40,6 +40,8 @@ from pydrake.all import (
     State,
     position_enabled,
     torque_enabled,
+    default_model_instance,
+    BodyIndex
 )
 
 from util import get_package_xmls
@@ -157,7 +159,7 @@ class PlantUpdater(LeafSystem):
             self._plant_context = self._plant.CreateDefaultContext()
 
         body_poses = []
-        for body_idx in self._plant.GetBodyIndices():
+        for body_idx in [BodyIndex(i) for i in range(self._plant.num_bodies())]:
             body = self._plant.get_body(body_idx)
             pose = self._plant.CalcRelativeTransform(
                 context=self._plant_context,
