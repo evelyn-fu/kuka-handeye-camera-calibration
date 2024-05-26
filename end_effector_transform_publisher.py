@@ -48,8 +48,8 @@ class EndEffectorTransformPublisher(LeafSystem, Node):
         t = TransformStamped()
 
         t.header.stamp = self.get_clock().now().to_msg()
-        t.header.frame_id="drake_base"
-        t._child_frame_id = "drake_eef"
+        t.header.frame_id="external_base"
+        t._child_frame_id = "external_eef"
 
         p = X_BaseEe.GetAsMatrix4()[:3, 3]
 
@@ -58,6 +58,48 @@ class EndEffectorTransformPublisher(LeafSystem, Node):
         t.transform.translation.z = p[2] 
         
         r = R.from_matrix(X_BaseEe.GetAsMatrix4()[:3, :3])
+
+        t.transform.rotation.x = r.as_quat()[0]
+        t.transform.rotation.y = r.as_quat()[1]
+        t.transform.rotation.z = r.as_quat()[2]
+        t.transform.rotation.w = r.as_quat()[3]
+
+        self.tf_broadcaster.sendTransform(t)    
+
+        t = TransformStamped()
+
+        t.header.stamp = self.get_clock().now().to_msg()
+        t.header.frame_id="world"
+        t._child_frame_id = "external_eef"
+
+        p = X_WEe.GetAsMatrix4()[:3, 3]
+
+        t.transform.translation.x = p[0]
+        t.transform.translation.y = p[1]
+        t.transform.translation.z = p[2] 
+        
+        r = R.from_matrix(X_WEe.GetAsMatrix4()[:3, :3])
+
+        t.transform.rotation.x = r.as_quat()[0]
+        t.transform.rotation.y = r.as_quat()[1]
+        t.transform.rotation.z = r.as_quat()[2]
+        t.transform.rotation.w = r.as_quat()[3]
+
+        self.tf_broadcaster.sendTransform(t)    
+
+        t = TransformStamped()
+
+        t.header.stamp = self.get_clock().now().to_msg()
+        t.header.frame_id="world"
+        t._child_frame_id = "external_base"
+
+        p = X_WBase.GetAsMatrix4()[:3, 3]
+
+        t.transform.translation.x = p[0]
+        t.transform.translation.y = p[1]
+        t.transform.translation.z = p[2] 
+        
+        r = R.from_matrix(X_WBase.GetAsMatrix4()[:3, :3])
 
         t.transform.rotation.x = r.as_quat()[0]
         t.transform.rotation.y = r.as_quat()[1]
