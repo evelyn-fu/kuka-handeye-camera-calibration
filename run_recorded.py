@@ -103,8 +103,8 @@ def main(use_hardware = False, camera = "back_right"):
     simulator = Simulator(diagram)
     simulator.set_target_realtime_rate(1.0)
 
-    samples_back_right = [] # roll, pitch, yaw, x, y, z
-    for z in [0.35, 0.5]:
+    samples_back_right = [[]] # roll, pitch, yaw, x, y, z
+    for z in [0.35, 0.45]:
         for y in [-0.3, 0.0]:
             for x in [0.5, 0.6]:
                 for roll in [3.14, 2.36]:
@@ -113,13 +113,33 @@ def main(use_hardware = False, camera = "back_right"):
                             samples_back_right.append([roll, pitch, yaw, x, y, z])
     samples_back_right.append(samples_back_right[0])
 
+    samples_back_left = [] # roll, pitch, yaw, x, y, z
+    for z in [0.35, 0.45]:
+        for y in [0.3, 0.0]:
+            for x in [0.5, 0.6]:
+                for roll in [3.14, 3.92]:
+                    for pitch in [0, 0.4, -0.4]:
+                        for yaw in [-1, -0.7, -1.3]:
+                            samples_back_left.append([roll, pitch, yaw, x, y, z])
+    samples_back_left.append(samples_back_left[0])
+
+    samples_front = [] # roll, pitch, yaw, x, y, z
+    for z in [0.6, 0.45]:
+        for y in [-0.2, 0.0, 0.2]:
+            for x in [0.5, 0.6]:
+                for roll in [2.36, 3.14, 3.92]:
+                    for pitch in [0, 0.4]:
+                        for yaw in [-3, 3]:
+                            samples_front.append([roll, pitch, yaw, x, y, z])
+    samples_front.append(samples_front[0])
+
     samples = []
     if camera == "back_right":
         samples = samples_back_right
     if camera == "back_left":
-        samples = samples_back_right
+        samples = samples_back_left
     if camera == "front":
-        samples = samples_back_right
+        samples = samples_front
 
     start = time.time()
     moving = False
