@@ -124,8 +124,8 @@ def main(use_hardware = False, camera = "back_right"):
     samples_back_left.append(samples_back_left[0])
 
     samples_front = [] # roll, pitch, yaw, x, y, z
-    for z in [0.6, 0.45]:
-        for y in [-0.2, 0.0, 0.2]:
+    for z in [0.55, 0.45]:
+        for y in [-0.1, 0.0, 0.1]:
             for x in [0.5, 0.6]:
                 for roll in [2.36, 3.14, 3.92]:
                     for pitch in [0, 0.4]:
