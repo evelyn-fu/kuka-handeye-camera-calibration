@@ -4,6 +4,7 @@
 import os
 import argparse
 import numpy as np
+import time
 from pydrake.geometry import (
     StartMeshcat
 )
@@ -19,6 +20,9 @@ from pydrake.manipulation import (
 )
 from pydrake.all import (
     MeshcatVisualizer,
+    RigidTransform,
+    RollPitchYaw,
+    RotationMatrix
 )
 from manipulation.station import MakeHardwareStation, LoadScenario
 from pydrake.systems.analysis import Simulator
@@ -30,7 +34,10 @@ import rclpy
 from manipulation.scenarios import AddIiwaDifferentialIK
 from pydrake.all import DiagramBuilder, MeshcatPoseSliders, Simulator
 
-def main(use_hardware = False):
+def main(use_hardware = False, camera = "back_right"):
+    if camera not in ["back_right", "back_left", "front"]:
+        raise Exception("Invalid camera selection. Valid options are \'back_right\', \'back_left\', or \'front\'")
+    
     builder = DiagramBuilder()
     dir_path = os.path.dirname(os.path.realpath(__file__))
     filename = os.path.join(dir_path, "scenario_data_teleop.yml")
@@ -96,14 +103,53 @@ def main(use_hardware = False):
     simulator = Simulator(diagram)
     simulator.set_target_realtime_rate(1.0)
 
+    samples_back_right = [] # roll, pitch, yaw, x, y, z
+    for z in [0.35, 0.5]:
+        for y in [-0.3, 0.0]:
+            for x in [0.5, 0.6]:
+                for roll in [3.14, 2.36]:
+                    for pitch in [0, 0.4, -0.4]:
+                        for yaw in [1, 0.7, 1.3]:
+                            samples_back_right.append([roll, pitch, yaw, x, y, z])
+    samples_back_right.append(samples_back_right[0])
+
+    samples = []
+    if camera == "back_right":
+        samples = samples_back_right
+    if camera == "back_left":
+        samples = samples_back_right
+    if camera == "front":
+        samples = samples_back_right
+
+    start = time.time()
+    moving = False
+    sample_ind = 0
+    done = True
     station.internal_meshcat.AddButton("Stop Simulation")
-    station.internal_meshcat.AddButton("Take Sample")
-    prev_clicks = station.internal_meshcat.GetButtonClicks("Take Sample")
+    station.internal_meshcat.AddButton("Start Calibration")
+    start_calibration_clicks = station.internal_meshcat.GetButtonClicks("Start Calibration")
     while station.internal_meshcat.GetButtonClicks("Stop Simulation") < 1:
-        if station.internal_meshcat.GetButtonClicks("Take Sample") > prev_clicks:
-            take_sample_publisher.publish()
-        prev_clicks = station.internal_meshcat.GetButtonClicks("Take Sample")
+        if not done:
+            if (moving and time.time() - start > 2.0) or (not moving and time.time() - start > 1.0):
+                if moving:
+                    take_sample_publisher.publish()
+                    moving = False
+                else:
+                    s = samples[sample_ind]
+                    print(s)
+                    teleop.SetPose(RigidTransform(RotationMatrix(RollPitchYaw(s[0], s[1], s[2])), s[3:]))
+                    sample_ind += 1
+                    if sample_ind == len(samples):
+                        done = True # Don't publish last one (return to home)
+                    moving = True
+                start = time.time()
+        else:
+            if station.internal_meshcat.GetButtonClicks("Start Calibration") > start_calibration_clicks:
+                done = False
+        
+        start_calibration_clicks = station.internal_meshcat.GetButtonClicks("Start Calibration")
         simulator.AdvanceTo(simulator.get_context().get_time() + 0.1)
+        
 
     station.internal_meshcat.DeleteButton("Stop Simulation")
     ee_publisher.destroy_node()
@@ -116,5 +162,10 @@ if __name__ == '__main__':
         action="store_true",
         help="Whether to use real world hardware.",
     )
+    parser.add_argument(
+        "--camera",
+        default="back_right",
+        help="which camera to calibrate",
+    )
     args = parser.parse_args()
-    main(use_hardware=args.use_hardware)
+    main(use_hardware=args.use_hardware, camera=args.camera)

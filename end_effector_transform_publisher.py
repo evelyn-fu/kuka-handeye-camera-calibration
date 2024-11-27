@@ -15,10 +15,21 @@ from pydrake.common.value import (
     AbstractValue
 )
 
+class TakeSampleTriggerPublisher(Node):
+    def __init__(self):
+        Node.__init__(self, 'trigger_publisher')
+        self.trigger_publisher = self.create_publisher(String, 'external_take_sample_trigger', 10)
+    
+    def publish(self):
+        msg = String()
+        msg.data = 'Trigger'  # Set the message data to 'Trigger'
+        self.trigger_publisher.publish(msg)
+        self.get_logger().info(f'Publishing: "{msg.data}"')
+
 class EndEffectorTransformPublisher(LeafSystem, Node):
     def __init__(self, plant):
         LeafSystem.__init__(self)
-        Node.__init__(self, 'minimal_publisher')
+        Node.__init__(self, 'eef_publisher')
 
         self._ee_index = plant.GetBodyByName("iiwa_link_7").index()
         self._base_index = plant.GetBodyByName("iiwa_link_0").index()
