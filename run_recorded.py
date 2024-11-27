@@ -103,7 +103,7 @@ def main(use_hardware = False, camera = "back_right"):
     simulator = Simulator(diagram)
     simulator.set_target_realtime_rate(1.0)
 
-    samples_back_right = [[]] # roll, pitch, yaw, x, y, z
+    samples_back_right = [] # roll, pitch, yaw, x, y, z
     for z in [0.35, 0.45]:
         for y in [-0.3, 0.0]:
             for x in [0.5, 0.6]:
