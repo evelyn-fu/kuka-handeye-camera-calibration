@@ -147,9 +147,14 @@ def main(use_hardware = False, camera = "back_right"):
     done = True
     station.internal_meshcat.AddButton("Stop Simulation")
     station.internal_meshcat.AddButton("Start Calibration")
+    station.internal_meshcat.AddButton("Stop Calibration")
     start_calibration_clicks = station.internal_meshcat.GetButtonClicks("Start Calibration")
+    stop_calibration_clicks = station.internal_meshcat.GetButtonClicks("Stop Calibration")
     while station.internal_meshcat.GetButtonClicks("Stop Simulation") < 1:
         if not done:
+            if station.internal_meshcat.GetButtonClicks("Stop Calibration") > stop_calibration_clicks:
+                done = True
+
             if (moving and time.time() - start > 2.0) or (not moving and time.time() - start > 1.0):
                 if moving:
                     take_sample_publisher.publish()
@@ -166,8 +171,10 @@ def main(use_hardware = False, camera = "back_right"):
         else:
             if station.internal_meshcat.GetButtonClicks("Start Calibration") > start_calibration_clicks:
                 done = False
+                sample_ind = 0
         
         start_calibration_clicks = station.internal_meshcat.GetButtonClicks("Start Calibration")
+        stop_calibration_clicks = station.internal_meshcat.GetButtonClicks("Stop Calibration")
         simulator.AdvanceTo(simulator.get_context().get_time() + 0.1)
         
 
