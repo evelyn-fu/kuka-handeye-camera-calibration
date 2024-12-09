@@ -1,0 +1,92 @@
+# directives:
+# - add_frame:
+#     name: front
+#     X_PF:
+#         base_frame: world
+#         rotation: !Rpy { deg: [  2.0540215 ,  -0.31583718, -89.24078404]}
+#         translation: [-0.0730357, 0.032904, 0.151341]
+
+# - add_frame:
+#     name: back_right
+#     X_PF:
+#         base_frame: world
+#         rotation: !Rpy { deg: [  2.0540215 ,  -0.31583718, -89.24078404]}
+#         translation: [-0.0730357, 0.032904, 0.151341]
+
+# - add_frame:
+#     name: back_left
+#     X_PF:
+#         base_frame: world
+#         rotation: !Rpy { deg: [  2.0540215 ,  -0.31583718, -89.24078404]}
+#         translation: [-0.0730357, 0.032904, 0.151341]
+
+# - add_model:
+#     name: front_model
+#     file: package://manipulation/camera_box.sdf
+
+# - add_weld:
+#     parent: front
+#     child: front_model::base
+
+# - add_model:
+#     name: back_right_model
+#     file: package://manipulation/camera_box.sdf
+
+# - add_weld:
+#     parent: back_right
+#     child: back_right_model::base
+
+# - add_model:
+#     name: back_left_model
+#     file: package://manipulation/camera_box.sdf
+
+# - add_weld:
+#     parent: back_left
+#     child: back_left_model::base
+
+cameras:
+    front:
+        name: front
+        depth: True
+        width: 1920
+        height: 1440
+        focal: !FovDegrees {x: 69, y: 42}
+        lcm_bus: driver_traffic
+        X_PB:
+            base_frame: world
+            # base_frame: front_model::base
+    back_right:
+        name: back_right
+        depth: True
+        width: 1920
+        height: 1440
+        focal: !FovDegrees {x: 69, y: 42}
+        lcm_bus: driver_traffic
+        X_PB:
+            base_frame: world
+            # base_frame: back_right_model::base
+    back_left:
+        name: back_left
+        depth: True
+        width: 1920
+        height: 1440
+        focal: !FovDegrees {x: 69, y: 42}
+        lcm_bus: driver_traffic
+        X_PB:
+            base_frame: world
+            # base_frame: back_left_model::base
+
+plant_config:
+    time_step: 0.001
+    contact_model: "hydroelastic"
+    discrete_contact_approximation: "sap"
+
+camera_ids:
+    front: "DRAKE_RGBD_CAMERA_IMAGES_843512061674"
+    back_right: "DRAKE_RGBD_CAMERA_IMAGES_802212061325"
+    back_left: "DRAKE_RGBD_CAMERA_IMAGES_928222061590"
+
+lcm_buses:
+    driver_traffic:
+        # Use a non-default LCM url to communicate with the robot.
+        lcm_url: udpm://239.255.76.67:7667?ttl=0

@@ -128,7 +128,7 @@ def main(use_hardware = False, camera = "back_right"):
         for y in [-0.1, 0.0, 0.1]:
             for x in [0.5, 0.6]:
                 for roll in [2.36, 3.14, 3.92]:
-                    for pitch in [0, 0.4]:
+                    for pitch in [0.4, 0.8]:
                         for yaw in [-3, 3]:
                             samples_front.append([roll, pitch, yaw, x, y, z])
     samples_front.append(samples_front[0])
@@ -155,7 +155,7 @@ def main(use_hardware = False, camera = "back_right"):
             if station.internal_meshcat.GetButtonClicks("Stop Calibration") > stop_calibration_clicks:
                 done = True
 
-            if (moving and time.time() - start > 2.0) or (not moving and time.time() - start > 1.0):
+            if (moving and time.time() - start > 3.0) or (not moving and time.time() - start > 2.0):
                 if moving:
                     take_sample_publisher.publish()
                     moving = False
@@ -171,6 +171,7 @@ def main(use_hardware = False, camera = "back_right"):
         else:
             if station.internal_meshcat.GetButtonClicks("Start Calibration") > start_calibration_clicks:
                 done = False
+                moving = False
                 sample_ind = 0
         
         start_calibration_clicks = station.internal_meshcat.GetButtonClicks("Start Calibration")
