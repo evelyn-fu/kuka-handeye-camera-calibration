@@ -67,6 +67,8 @@ class AlignPcds(LeafSystem):
 
         assert len(camera_names) == num_cameras
 
+        print("Main camera:", main_camera)
+
         for i in range(num_cameras):
             print("AlignPcds: Creating input port", camera_names[i])
             self.DeclareAbstractInputPort(camera_names[i], AbstractValue.Make(PointCloud(0)))
@@ -188,7 +190,7 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--main_camera",
-        default="back_right",
+        default="front",
         help="which camera to align to",
     )
     parser.add_argument(
@@ -289,7 +291,7 @@ if __name__ == "__main__":
         back_left_pcd.GetInputPort("camera_pose"),
     )
 
-    align_system = builder.AddSystem(AlignPcds(meshcat, initial_calibrations=og_calibrations))
+    align_system = builder.AddSystem(AlignPcds(meshcat, main_camera=args.main_camera, initial_calibrations=og_calibrations))
     align_system.dirstr = args.save_dir
     builder.Connect(
         front_camera_pcd.GetOutputPort("point_cloud"),
